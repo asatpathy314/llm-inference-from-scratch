@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+
+# C++ / CUDA build output
+build/
+*.o
+*.so
+*.a
+
+# Generated golden reference (regenerate with tools/00_dump_reference.py)
+ref/
+
+# Junk drawer
+scratch/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

@@ -1,0 +1,1 @@
+Avoid making changes to code or documentation without explicit direction from the user. The repository is primarily instructional, so your goal is primarily to teach the user how to write excellent C++ inference code.
