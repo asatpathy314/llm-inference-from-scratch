@@ -23,6 +23,7 @@ from huggingface_hub import hf_hub_download
 
 MODEL = "meta-llama/Llama-3.2-1B"
 OUTDIR = Path(__file__).resolve().parent.parent / "ref"
+HEAD_DIM = 64
 DTYPE_TO_BYTES = {
     "BF16": 2,
     "F16": 2,
@@ -40,9 +41,9 @@ DTYPE_TO_BYTES = {
 def inspect():
     path = hf_hub_download(MODEL, "model.safetensors")
 
-    # This isn't strictly necessary, but is useful for later C++ development
+    # this isn't strictly necessary, but is useful for later C++ development
     with open(path, "rb") as model_bytes:
-        # The first 8 bytes of the file contain the length of the header
+        # the first 8 bytes of the file contain the length of the header
         header_len = int.from_bytes(model_bytes.read(8), "little")
 
         # notably the "data_offsets" attribute is relative to 8 + header_len
@@ -73,6 +74,29 @@ def inspect():
         file_size = os.path.getsize(path)
         blob_end = data_start + spans[-1][1]
         assert blob_end == file_size, f"blob ends at {blob_end}, file is {file_size}"
+
+        # summary
+        print(
+            f"Total parameter count is {sum(math.prod(info['shape']) for info in header.values())}."
+        )
+        print(f"Blob size is {file_size - data_start}.")
+
+        # print model tensor information
+        for name, info in header.items():
+            if ".layers" in name and not name.startswith("model.layers.0."):
+                continue
+            print(name, info["dtype"], info["shape"])
+
+        # calculate the number of attention heads
+        q_proj = "model.layers.0.self_attn.q_proj.weight"
+        k_proj = "model.layers.0.self_attn.k_proj.weight"
+        n_q_heads = header[q_proj]["shape"][0] // HEAD_DIM
+        n_kv_heads = header[k_proj]["shape"][0] // HEAD_DIM
+        assert n_q_heads == 32, f"expected 32 query heads, got {n_q_heads}"
+        assert n_kv_heads == 8, f"expected 8 kv heads, got {n_kv_heads}"
+
+        # tied embeddings: the output projection reuses model.embed_tokens.weight
+        assert "lm_head.weight" not in header, "header contains lm_head.weight"
 
 
 if __name__ == "__main__":
