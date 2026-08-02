@@ -19,7 +19,9 @@ import os
 from itertools import pairwise
 from pathlib import Path
 
+import torch
 from huggingface_hub import hf_hub_download
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 MODEL = "meta-llama/Llama-3.2-1B"
 OUTDIR = Path(__file__).resolve().parent.parent / "ref"
@@ -36,6 +38,7 @@ DTYPE_TO_BYTES = {
     "U8": 1,
     "BOOL": 1,
 }
+PROMPT = "The capital of France is"
 
 
 def inspect():
@@ -99,5 +102,47 @@ def inspect():
         assert "lm_head.weight" not in header, "header contains lm_head.weight"
 
 
+def dump():
+    OUTDIR.mkdir(parents=True, exist_ok=True)
+
+    meta_info = dict()
+    tokenizer = AutoTokenizer.from_pretrained(MODEL)
+    inputs = tokenizer(PROMPT, return_tensors="pt")
+
+    meta_info["token_ids"] = inputs["input_ids"][0].tolist()
+
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL, dtype=torch.float32, attn_implementation="eager"
+    ).eval()
+
+    with torch.no_grad():
+        out = model(**inputs, output_hidden_states=True, use_cache=False)
+
+    meta_info["tensors"] = dict()
+
+    # hidden_XX is the input to block XX. However, hidden_16 is the output of 15 + RMS norm.
+    for idx, hidden_state in enumerate(out.hidden_states):
+        write_tensor(meta_info, f"hidden_{idx:02d}", hidden_state)
+    write_tensor(meta_info, "logits", out.logits)
+
+    continuation = tokenizer.decode(out.logits[0, -1, :].argmax().item())
+    print(f'The model\'s continuation is "{continuation}".')
+
+    meta_info["prompt"] = PROMPT
+    meta_info["model"] = MODEL
+    (OUTDIR / "meta.json").write_text(json.dumps(meta_info, indent=2))
+
+
+def write_tensor(meta_info, name, tensor):
+    assert tensor.dtype == torch.float32, f"{name} is {tensor.dtype}, expected float32"
+    tensor[0].detach().cpu().numpy().tofile(OUTDIR / f"{name}.bin")
+    meta_info["tensors"][name] = {
+        "file": f"{name}.bin",
+        "shape": list(tensor[0].shape),
+        "dtype": "F32",
+    }
+
+
 if __name__ == "__main__":
     inspect()
+    dump()
