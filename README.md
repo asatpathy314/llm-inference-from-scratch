@@ -24,3 +24,16 @@ Llama-3.2 is a gated repo, so authenticate once first:
 ```sh
 uvx hf auth login
 ```
+
+## C++ side
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build
+./build/inference "$(find ~/.cache/huggingface -name model.safetensors | head -1)"
+```
+
+The configure step is only needed after `CMakeLists.txt` changes; day to day just
+run the build step. Debug builds carry ASan and UBSan, so they are slow on
+purpose. When benchmarking, strip the sanitizer flags from `CMakeLists.txt` before measuring
+anything.
