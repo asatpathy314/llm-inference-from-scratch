@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <span>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 class MappedFile {
  public:
@@ -18,4 +20,22 @@ class MappedFile {
  private:
   uint8_t* data_ = nullptr;
   std::size_t size_ = 0;
+};
+
+struct TensorView {
+  std::string dtype;
+  std::vector<int64_t> shape;
+  std::span<const uint8_t> data;
+};
+
+class SafeTensors {
+ public:
+  explicit SafeTensors(const std::string& path);
+
+  const TensorView& get(const std::string& name) const;
+  const std::unordered_map<std::string, TensorView>& tensors() const { return tensors_; }
+
+ private:
+  MappedFile file_;
+  std::unordered_map<std::string, TensorView> tensors_;
 };
