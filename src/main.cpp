@@ -8,10 +8,6 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  MappedFile model(argv[1]);
-  std::span<const uint8_t> file_span = model.bytes();
-
-  std::printf("model path: %s\n", argv[1]);
-  std::printf("model size: %zu\n", file_span.size());
+  SafeTensors model(argv[1]);
   return 0;
 }

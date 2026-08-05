@@ -6,6 +6,10 @@
 #include <sys/types.h>
 #include <unistd.h>  // close
 
+#include <cstring>   // memcpy
+#include <iostream>  // cout
+#include <nlohmann/json.hpp>
+#include <numeric>  // accumulate
 #include <stdexcept>
 #include <system_error>
 
@@ -31,3 +35,18 @@ MappedFile::MappedFile(const std::string& path) {
 }
 
 MappedFile::~MappedFile() { ::munmap(data_, size_); }
+
+SafeTensors::SafeTensors(const std::string& path) : file_(path) {
+  std::span<const uint8_t> span = file_.bytes();
+
+  // first 8 bytes are the header length
+  uint64_t header_len = 0;
+  std::memcpy(&header_len, span.data(), sizeof(header_len));
+  nlohmann::json header = nlohmann::json::parse(span.subspan(8, header_len));
+
+  std::cout << header_len << std::endl;
+}
+
+int64_t TensorView::numel() const {
+  return std::accumulate(shape.begin(), shape.end(), int64_t{1}, std::multiplies<int64_t>());
+}
